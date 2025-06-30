@@ -16,7 +16,6 @@ MESSAGE="PEEKACAT"
 BAD_MODE=false
 DRY_RUN=false
 OWNER_REPO=""
-SUPER_CLEAN=false  # Super clean option for complete history rewrite
 MESSAGE_SET_BY_USER=false  # Track if user explicitly set a message
 
 ###############################################################################
@@ -37,7 +36,6 @@ OPTIONS:
                          If used alone, creates just the background without message
     -d, --dry-run        Generate PNG preview without making commits
     -o, --owner-repo     GitHub repository in format OWNER/REPO (overrides REPO variable)
-    -s, --super-clean    Use super-aggressive history cleaning (removes ALL history)
     -h, --help           Show this help message
 
 EXAMPLES:
@@ -46,7 +44,6 @@ EXAMPLES:
     $0 -b -y 2019                          # Just heavy background, no message
     $0 -d -m "TEST" -y 2024                # Preview "TEST" for 2024
     $0 -o "username/my-repo" -m "CODE" -y 2024  # Use different repo
-    $0 -y 2022 -m "FIX" -s                 # Super clean - removes all history!
 
 NOTE: Make sure to replace <OWNER>/<REPO> in the REPO variable with your actual repository.
 EOF
@@ -79,10 +76,6 @@ while [[ $# -gt 0 ]]; do
         -o|--owner-repo)
             OWNER_REPO="$2"
             shift 2
-            ;;
-        -s|--super-clean)
-            SUPER_CLEAN=true
-            shift
             ;;
         -h|--help)
             show_help
@@ -129,6 +122,32 @@ if [ "$DRY_RUN" = true ]; then
     echo "🐍 Starting Python script..."
     # Skip Git operations and go straight to visualization
 else
+    # ⚠️  WARNING: This will modify your GitHub contribution graph!
+    echo "⚠️  WARNING: This script will modify your GitHub contribution graph for $YEAR"
+    echo "📁 Repository: $REPO"
+    if [ "$BAD_MODE" = true ]; then
+        if [ "$MESSAGE_SET_BY_USER" = true ]; then
+            echo "🎯 Action: Will create message '$MESSAGE' with heavy activity background"
+        else
+            echo "🎯 Action: Will create heavy activity background (no message)"
+        fi
+    else
+        echo "🎯 Action: Will create message '$MESSAGE' (clean background)"
+    fi
+    echo ""
+    echo "This operation will:"
+    echo "  • Create hundreds of backdated commits"
+    echo "  • Modify your contribution graph permanently"
+    echo "  • Add commits to your repository"
+    echo ""
+    read -p "Do you want to continue? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Operation cancelled by user"
+        exit 0
+    fi
+    echo "✅ Proceeding with contribution graph modification..."
+    echo ""
     # --- discover the repo's default branch (main / master / custom) -------------
     DEFAULT=$(git ls-remote --symref "$REPO" HEAD \
               | awk '/^ref:/ {sub("refs/heads/","",$2); print $2}')
@@ -138,70 +157,12 @@ else
     cd "$WORK"
     git checkout "$DEFAULT"
 
-    # Clean up any leftover temporary branches from previous runs
-    git branch -D $(git branch --list "temp-clean-*") 2>/dev/null || true
-
-    # Create a backup of the current state regardless of cleaning mode
+    # Create a backup of the current state
     BACKUP_TAG="backup-before-peekacat-$(date +%s)"
     git tag "$BACKUP_TAG" 2>/dev/null || true
     echo "💾 Created backup tag: $BACKUP_TAG"
 
-    if [ "$SUPER_CLEAN" = true ]; then
-        echo "🧨 SUPER CLEAN MODE: Will remove ALL history and start fresh!"
-        echo "⚠️  This is a destructive operation that cannot be undone!"
-        
-        echo "🧨 Creating new orphan branch with no history..."
-        
-        # Use a consistent timestamp for the branch name
-        CLEAN_TIMESTAMP=$(date +%s)
-        CLEAN_BRANCH="clean-slate-$CLEAN_TIMESTAMP"
-        
-        # Create an orphan branch, then force the default branch to it
-        # This creates a completely clean slate
-        git checkout --orphan "$CLEAN_BRANCH"
-        
-        # Create an initial commit with just a README - but make it very old to not interfere
-        echo "# PEEKACAT Contribution Art Repository" > README.md
-        echo "Created on $(date)" >> README.md
-        git add README.md
-        
-        # Set the initial commit to a very old date so it doesn't interfere with contribution graph
-        OLD_DATE="2000-01-01T00:00:00"
-        env GIT_AUTHOR_DATE="$OLD_DATE" GIT_COMMITTER_DATE="$OLD_DATE" \
-            git commit -m "Initial commit - clean slate" --quiet
-        
-        # Force the default branch to this new state
-        git checkout "$DEFAULT"
-        git reset --hard "$CLEAN_BRANCH"
-        
-        # Clean up 
-        git branch -D "$CLEAN_BRANCH" 2>/dev/null || true
-        
-        echo "✅ Complete history reset successful"
-        EXISTING_COMMITS=0
-        
-        # Force push the clean slate immediately to sync with remote
-        echo "🚀 Force-pushing clean slate to remote..."
-        git push --force-with-lease origin "$DEFAULT" || {
-            echo "⚠️  Force push failed, trying regular force push..."
-            git push --force origin "$DEFAULT"
-        }
-        
-        # Initialize billboard.txt with an old date too
-        echo "PEEKACAT pixel art repository" > billboard.txt
-        git add billboard.txt
-        env GIT_AUTHOR_DATE="$OLD_DATE" GIT_COMMITTER_DATE="$OLD_DATE" \
-            git commit -m "Initialize billboard.txt" --quiet || true
-        
-        # Push the billboard.txt commit
-        git push --quiet origin "$DEFAULT" || true
-        
-        echo "✅ Clean slate established with backdated initial commits"
-    
-    else
-        echo "✅ Starting with existing repository state - commits will be additive"
-        EXISTING_COMMITS=0
-    fi
+    echo "✅ Starting with existing repository state - commits will be additive"
 
     # Ensure billboard.txt exists
     if [ ! -f "billboard.txt" ]; then
@@ -216,7 +177,6 @@ else
     export YEAR="$YEAR"
     export BAD_MODE="$BAD_MODE"
     export DRY_RUN="$DRY_RUN"
-    export SUPER_CLEAN="$SUPER_CLEAN"
     export MESSAGE_SET_BY_USER="$MESSAGE_SET_BY_USER"
 fi
 
@@ -373,15 +333,15 @@ if BAD_MODE:
             for r_local, row_bits in enumerate(glyph):
                 for c_local, bit in enumerate(row_bits):
                     if bit == '1' and top_pad + r_local < ROWS and col + c_local < COLS:
-                        # Make message pixels MUCH brighter - dramatic contrast above background
+                        # Make message pixels EXTREMELY bright - maximum contrast above background
                         background_activity = GRID[top_pad + r_local][col + c_local]
-                        # Ensure message is dramatically brighter (60+ commits above background)
-                        message_activity = background_activity + random.randint(60, 100)
-                        GRID[top_pad + r_local][col + c_local] = min(message_activity, 140)
+                        # Ensure message is dramatically brighter (80+ commits above background)
+                        message_activity = background_activity + random.randint(80, 120)
+                        GRID[top_pad + r_local][col + c_local] = min(message_activity, 160)
             col += 6   # 5 columns of glyph + 1 column gap
         
         # Quick validation of message brightness
-        message_pixels = sum(1 for x in range(COLS) for y in range(ROWS) if GRID[y][x] >= 60)
+        message_pixels = sum(1 for x in range(COLS) for y in range(ROWS) if GRID[y][x] >= 80)
         print(f"✅ {message_pixels} high-intensity message pixels created")
     else:
         print(f"🎭 Bad mode: Creating realistic activity background without message overlay")
@@ -432,7 +392,7 @@ if DRY_RUN:
                 if GRID[y][x] > 0:
                     # Simplified mapping for better contrast
                     if BAD_MODE:
-                        if GRID[y][x] >= 60:  # Message pixels - much higher threshold
+                        if GRID[y][x] >= 80:  # Message pixels - much higher threshold for brightest green
                             intensity = 4  # Brightest green
                         elif GRID[y][x] >= 20:
                             intensity = 3
@@ -546,12 +506,11 @@ else:
             except subprocess.CalledProcessError:
                 continue  # Skip failed commits
 
-    def push_batch(force_first=False):
+    def push_batch():
         """GitHub-friendly batch push with rate limiting"""
         import time
         try:
-            cmd = "git push --force-with-lease origin HEAD" if force_first else "git push --quiet origin HEAD"
-            subprocess.run(cmd, shell=True, check=True)
+            subprocess.run("git push --quiet origin HEAD", shell=True, check=True)
             print("✅ Batch pushed successfully")
             # Add delay to respect GitHub rate limits
             time.sleep(2)  # 2-second delay between pushes
@@ -572,14 +531,9 @@ else:
     commits_since_push = 0
     MAX_COMMITS_PER_PUSH = 50  # Reduced from 90 to stay well under GitHub's ~100 commit limit
     first_push = True
-    super_clean_mode = os.environ.get('SUPER_CLEAN', 'false').lower() == 'true'
     
     print(f"🔄 Using GitHub-friendly batching: push after completing days, max {MAX_COMMITS_PER_PUSH} commits per push")
-    
-    if super_clean_mode:
-        print("🧨 Super clean mode detected - first push will use force")
-    else:
-        print("📝 Normal mode - using regular pushes")
+    print("📝 Additive mode - using regular pushes")
     
     # Process pixels in chronological order (by date, not grid position)
     # This ensures we complete each day before moving to the next
@@ -611,9 +565,7 @@ else:
             # If we have accumulated commits and adding this day would exceed limit, push now
             if commits_since_push > 0 and (commits_since_push + commit_count) > MAX_COMMITS_PER_PUSH:
                 print(f"🚀 Pushing batch ({commits_since_push} commits) before starting {date}...")
-                # Use force push only for first batch after super clean
-                force_push = (first_push and super_clean_mode)
-                push_batch(force_first=force_push)
+                push_batch()
                 first_push = False
                 commits_since_push = 0
             
@@ -634,9 +586,7 @@ else:
         
         if should_push:
             print(f"🚀 Pushing batch ({commits_since_push} commits) after completing {date}...")
-            # Use force push only for first batch after super clean
-            force_push = (first_push and super_clean_mode)
-            push_batch(force_first=force_push)
+            push_batch()
             first_push = False
             commits_since_push = 0
 
