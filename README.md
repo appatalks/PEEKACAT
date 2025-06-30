@@ -28,5 +28,33 @@ This tool serves as a reminder that contribution graphs, while interesting, don'
 
 ----
 
+## Usage
+
+```bash
+$ bash peekacat.sh -h
+Usage: peekacat.sh [OPTIONS]
+
+Generate a custom GitHub contribution graph with a message for a specified year.
+
+OPTIONS:
+    -y, --year YEAR      Target year for the contribution graph (default: 2008)
+    -m, --message MSG    Custom message to display (max 8 characters, default: PEEKACAT)
+    -b, --bad            Enable bad mode - creates realistic heavy activity background
+                         If used with -m, overlays message on background
+                         If used alone, creates just the background without message
+    -d, --dry-run        Generate PNG preview without making commits
+    -o, --owner-repo     GitHub repository in format OWNER/REPO (overrides REPO variable)
+    -h, --help           Show this help message
+
+EXAMPLES:
+    peekacat.sh -y 2020 -m "PEEKACAT"               # Display "PEEKACAT" for 2020
+    peekacat.sh --year 2023 --message "CODE" --bad  # Display "CODE" with heavy background
+    peekacat.sh -b -y 2019                          # Just heavy background, no message
+    peekacat.sh -d -m "TEST" -y 2024                # Preview "TEST" for 2024
+    peekacat.sh -o "username/my-repo" -m "CODE" -y 2024  # Use different repo
+```
+
+----
+
 ![Screenshot from 2025-06-30 01-16-46](https://github.com/user-attachments/assets/424e530b-87a2-48de-b952-092d2cc91fbf)
 
