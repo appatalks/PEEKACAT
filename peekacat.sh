@@ -39,7 +39,7 @@ OPTIONS:
     -h, --help           Show this help message
 
 EXAMPLES:
-    $0 -y 2020 -m "HELLO"                  # Display "HELLO" for 2020
+    $0 -y 2020 -m "PEEKACAT"               # Display "PEEKACAT" for 2020
     $0 --year 2023 --message "CODE" --bad  # Display "CODE" with heavy background
     $0 -b -y 2019                          # Just heavy background, no message
     $0 -d -m "TEST" -y 2024                # Preview "TEST" for 2024
